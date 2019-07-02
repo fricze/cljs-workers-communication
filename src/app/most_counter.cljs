@@ -1,5 +1,6 @@
 (ns app.most-counter
-  (:require ["@most/core" :refer [constant, scan, merge, tap, runEffects]]
+  (:require ["@most/core" :as most
+             :refer [constant, scan, merge, mergeArray, tap, runEffects]]
             ["@most/scheduler" :refer [newDefaultScheduler]]
             ["@most/dom-event" :refer [click]]
             [clojure.spec.alpha :as s]))
@@ -10,10 +11,10 @@
 (defn make-counter! []
   (let [inc-button (qs "[name=inc]" js/window.document)
         dec-button (qs "[name=dec]" js/window.document)
-        value (qs ".value" js/window.document)
-        inc$ (constant 1 (click inc-button))
-        dec$ (constant -1 (click dec-button))
-        counter$ (scan + 0 (merge inc$ dec$))
+        value      (qs ".value" js/window.document)
+        inc$       (constant 1 (click inc-button))
+        dec$       (constant -1 (click dec-button))
+        counter$   (scan + 0 (merge inc$ dec$))
 
         render! (tap (fn [total] (aset value "innerText" (js/String total))) counter$)]
 
@@ -34,7 +35,7 @@
 (defn make-counter-2! []
   (let [inc-button (qs "[name=inc]" js/window.document)
         dec-button (qs "[name=dec]" js/window.document)
-        value (qs ".value" js/window.document)
+        value      (qs ".value" js/window.document)
 
         inc$ (constant :counter/inc (click inc-button))
         dec$ (constant :counter/dec (click dec-button))
@@ -57,21 +58,69 @@
   {:pre [(s/valid? ::actions action)]}
   ((decide2 action) value))
 
+(defn dom-elements []
+  (map #(qs % js/window.document) ["[name=inc]"
+                                   "[name=dec]"
+                                   ".value"]))
+
 (defn make-counter-3! []
-  (let [inc-button (qs "[name=inc]" js/window.document)
-        dec-button (qs "[name=dec]" js/window.document)
-        value (qs ".value" js/window.document)
+  (let [[inc-button dec-button value] (dom-elements)
 
-        inc$ (->> (click inc-button)
-                  (constant :counter/inc))
-        dec$ (->> (click dec-button)
-                  (constant :counter/dec))
-
+        state    0
+        inc$     (->> (click inc-button)
+                      (constant :counter/inc))
+        dec$     (->> (click dec-button)
+                      (constant :counter/dec))
         counter$ (scan
                   #_(fn [total dom-signal] (run-action2 total dom-signal))
                   run-action2
-                  0 (merge inc$ dec$))
-
-        render! (tap #(aset value "innerText" (js/String %)) counter$)]
+                  state (mergeArray #js [inc$ dec$]))
+        render!  (tap #(aset value "innerText" (js/String %)) counter$)]
 
     (runEffects render! (newDefaultScheduler))))
+
+
+;; new counter 4
+
+
+(defn inc$ [action$ store]
+  (most/map (fn [val] (inc val)) action$))
+
+(defn dec$ [action$ store]
+  (most/map (fn [val] (inc val)) action$))
+
+(def decide3
+  {:counter/inc inc$
+   :counter/dec dec$})
+
+(defn run-action3 [value action]
+  {:pre [(s/valid? ::actions action)]}
+  ((decide3 action) value))
+
+(defn dom-elements! []
+  (map #(qs % js/window.document) ["[name=inc]"
+                                   "[name=dec]"
+                                   ".value"]))
+
+(defn make-counter-4! []
+  (let [[inc-button dec-button value] (dom-elements!)
+
+        state    0
+        inc$     (->> (click inc-button)
+                      (constant :counter/inc))
+        dec$     (->> (click dec-button)
+                      (constant :counter/dec))
+        counter$ (scan
+                  #_(fn [total dom-signal] (run-action2 total dom-signal))
+                  run-action2
+                  state (mergeArray #js [inc$ dec$]))
+        render!  (tap #(aset value "innerText" (js/String %)) counter$)]
+
+    (runEffects render! (newDefaultScheduler))))
+
+(comment
+  "so the thing is! effects and coeffects, vs. flattened streams for side effects.
+main thing, changing state based on actions, should be pure functions, but still…
+who decides about state change. late-bound messaging tells us, that receiver
+decides only in moment of receiving message, but… it decides basing on data got
+from message, so how many data can we send?")

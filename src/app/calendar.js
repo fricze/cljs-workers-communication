@@ -80,21 +80,23 @@ const useCalendarState = () => {
   }
 }
 
-const Calendar = ({ daysPerRow = 7, }) => {
-  const { setYear, setMonth, month, year, } = useCalendarState()
+const getNextDays = (month, year) =>
+  month === 11
+    ? getDaysInMonthRecursive(0, year + 1)
+    : getDaysInMonthRecursive(month + 1, year)
 
+const getPrevDays = (month, year) =>
+  month === 0
+    ? getDaysInMonthRecursive(11, year - 1)
+    : getDaysInMonthRecursive(month - 1, year)
+
+const getCalendarBlock = ({ month, year, daysPerRow, }) => {
   const daysCollection = getDaysInMonthRecursive(month, year)
 
   // System boundaries. Make sure to go correctly to next month in following year
-  const nextDaysCollection =
-    month === 11
-      ? getDaysInMonthRecursive(0, year + 1)
-      : getDaysInMonthRecursive(month + 1, year)
+  const nextDaysCollection = getNextDays(month, year)
   // System boundaries. Make sure to go correctly to previus month in previous year
-  const prevDaysCollection =
-    month === 0
-      ? getDaysInMonthRecursive(11, year - 1)
-      : getDaysInMonthRecursive(month - 1, year)
+  const prevDaysCollection = getPrevDays(month, year)
 
   const firstDay = daysCollection[0]
   const howFarToLeft = firstDay.getDay() % daysPerRow
@@ -103,15 +105,20 @@ const Calendar = ({ daysPerRow = 7, }) => {
     Math.max(prevDaysCollection.length - howFarToLeft, 1)
   )
   const currentWithPrev = lastFromPrevDays.concat(daysCollection)
+
   const rows = Math.ceil(currentWithPrev.length / daysPerRow)
   const shouldHaveCells = rows * daysPerRow
   const howFarToRight = shouldHaveCells - currentWithPrev.length
 
   const firstFromNextDays = nextDaysCollection.slice(0, howFarToRight)
 
-  const allDaysCollection = lastFromPrevDays
-    .concat(daysCollection)
-    .concat(firstFromNextDays)
+  return currentWithPrev.concat(firstFromNextDays)
+}
+
+export const Calendar = ({ daysPerRow = 7, _getCalendarBlock = getCalendarBlock, }) => {
+  const { setYear, setMonth, month, year, } = useCalendarState()
+
+  const allDaysCollection = _getCalendarBlock({ month, year, daysPerRow, })
 
   return h(
     "div",
@@ -166,6 +173,6 @@ const Calendar = ({ daysPerRow = 7, }) => {
   )
 }
 
-const root = h(Calendar)
+// const root = h(Calendar)
 
-render(root, document.getElementById("root"))
+// render(root, document.getElementById("root"))

@@ -1,5 +1,4 @@
-(ns app.calendar
-  (:require ["./calendar.js" :refer [getDaysInMonthRecursive]]))
+(ns app.get-month)
 
 (defn get-days-in-month-loop [month year]
   (loop [month month
@@ -40,12 +39,12 @@
 (defn same-month [date month]
   (= (.getMonth date) month))
 
-(defn get-next-date []
+(defn get-next-date [date]
   (let [next-date (js/Date. date)
         _ (.setDate next-date (inc (.getDate date)))]
     next-date))
 
-(defn get-days-in-month-loop [month year]
+(defn get-days-in-month-loop-2 [month year]
   (loop [month month
          year year
          date (js/Date. year month 1)
@@ -55,7 +54,7 @@
         (recur month year next-date (conj days (js/Date. date))))
       days)))
 
-(defn get-days-in-month
+(defn get-days-in-month-2
   ([month year]
    (get-days-in-month month year (js/Date. year month 1) []))
 
@@ -72,7 +71,7 @@
 ;; REFACTOR 2
 
 
-(defn get-days-in-month-loop [month year]
+(defn get-days-in-month-loop-3 [month year]
   (loop [month month
          year year
          date (js/Date. year month 1)
@@ -81,7 +80,7 @@
       (recur month year (get-next-date date) (conj days (js/Date. date)))
       days)))
 
-(defn get-days-in-month
+(defn get-days-in-month-3
   ([month year]
    (get-days-in-month month year (js/Date. year month 1) []))
 
