@@ -55,7 +55,11 @@
  :spawn-worker
  (fn [{:keys [msg-channel worker]}]
    (aset msg-channel "port1" "onmessage"
-         (fn [msg] (rf/dispatch [:worker-msg msg])))))
+         #(rf/dispatch [:worker-msg %]))
+
+   (.postMessage worker
+                 #js {:welcome true}
+                 #js [(.-port2 msg-channel)])))
 
 (rf/reg-event-fx
  :send-it
@@ -65,12 +69,7 @@
 (rf/reg-fx
  :post-message
  (fn [{:keys [msg-channel worker]}]
-   (js/console.log msg-channel)
-   (js/console.log worker)
-
-   (.postMessage worker
-                 #js {:henlo :girls}
-                 #js [(.-port2 msg-channel)])))
+   (.postMessage worker #js {:henlo :girls})))
 
 (rf/reg-event-fx
  :worker-msg
