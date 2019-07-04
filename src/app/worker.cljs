@@ -3,73 +3,85 @@
             [re-frame.core :as rf]
             [clojure.string :as str]))
 
-(rf/reg-event-db
- :initialize
- (fn [_ _] {}))
-
-(rf/reg-event-fx
- :work-it
- []
- (fn [{:keys [db]}]
-   (let [worker (js/Worker. "http://localhost:8080/worker.js")
-         msg-channel (js/MessageChannel.)]
-     {:spawn-worker {:msg-channel msg-channel :worker worker}
-      :db (assoc db :msg-channel msg-channel :worker worker)})))
+(defonce service-worker (atom {:worker/reference nil :worker/msg-channel nil}))
 
 (defn listen-on-channel! [channel handler]
   (aset channel "port1" "onmessage" handler))
 
-(defn worker-handshake! [worker channel]
+(defn send-worker-handshake! [worker channel]
   (.postMessage worker
                 #js {:welcome true}
                 #js [(.-port2 channel)]))
 
-(rf/reg-fx
- :spawn-worker
- (fn [{:keys [msg-channel worker]}]
-
-   (listen-on-channel! msg-channel #(rf/dispatch [:worker-msg %]))
-
-   (worker-handshake! worker msg-channel)))
+(defn spawn-worker []
+  {:worker/reference   (js/Worker. "http://localhost:8080/worker.js")
+   :worker/msg-channel (js/MessageChannel.)})
 
 (rf/reg-event-fx
- :send-it
- (fn [{:keys [db]}]
-   {:post-message db}))
+ :event/start-worker
+ (fn []
+   {:effect/spawn-worker (spawn-worker)}))
 
 (rf/reg-fx
- :post-message
- (fn [{:keys [msg-channel worker]}]
-   (.postMessage worker #js {:random-data (js/Math.random)})))
+ :effect/spawn-worker
+ (fn [worker]
 
+   (reset! service-worker worker)
+
+   (listen-on-channel!
+    (:worker/msg-channel worker)
+    #(rf/dispatch [:event/msg-from-worker %]))
+
+   (send-worker-handshake!
+    (:worker/reference worker)
+    (:worker/msg-channel worker))))
+
+;; collects service worker data, and calls :post-message effect
+(rf/reg-event-fx
+ :event/post-to-worker
+ [(rf/inject-cofx :coeffect/service-worker)]
+ (fn [{:keys [worker]}]
+   {:effect/post-to-worker service-worker}))
+
+;; assigns current worker reference and message channel to
+;; :service-worker coeffect
+(rf/reg-cofx
+ :coeffect/service-worker
+ (fn [coeffects]
+   (assoc coeffects :worker @service-worker)))
+
+;; actually send message to worker
+(rf/reg-fx
+ :effect/post-to-worker
+ (fn [worker]
+   (.postMessage (:worker/reference worker)
+                 #js {:random-number (js/Math.random)})))
+
+;; saves message got from worker in re-frame db
 (rf/reg-event-db
- :worker-msg
+ :event/msg-from-worker
  (fn [db [_ msg]]
-   (assoc db :msg (.-data msg))))
+   (assoc db :worker/msg (.-data msg))))
 
 (rf/reg-sub
- :worker-msg
+ :sub/worker.msg
  (fn [db _]
-   (:msg db)))
+   (:worker/msg db)))
 
 (defn ui
   []
   [:div
    [:h1 "Let's talk with service worker!"]
-   [:button {:on-click #(rf/dispatch [:work-it])} "worker"]
-   [:button {:on-click #(rf/dispatch [:send-it])} "sender"]
+
+   [:button {:on-click #(rf/dispatch [:event/start-worker])} "spawn worker"]
+   [:button {:on-click #(rf/dispatch [:event/post-to-worker])}
+    "send random data to worker"]
+
    [:div
     [:h1 "service worker message"]
+
     [:div
-     (js/JSON.stringify (clj->js @(rf/subscribe [:worker-msg])))]]])
+     (js/JSON.stringify (clj->js @(rf/subscribe [:sub/worker.msg])))]]])
 
-;; -- Entry Point -------------------------------------------------------------
-
-
-(defn ^:export run
-  []
-  (rf/dispatch-sync [:initialize])
-  ;; puts a value into application state
-  (reagent/render [ui]
-                  ;; mount the application's ui into '<div id="app" />'
-                  (js/document.getElementById "root")))
+(defn ^:export run []
+  (reagent/render [ui] (js/document.getElementById "root")))
