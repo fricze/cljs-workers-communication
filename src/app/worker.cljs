@@ -41,7 +41,7 @@
  :event/post-to-worker
  [(rf/inject-cofx :coeffect/service-worker)]
  (fn [{:keys [worker]}]
-   {:effect/post-to-worker service-worker}))
+   {:effect/post-to-worker worker}))
 
 ;; assigns current worker reference and message channel to
 ;; :service-worker coeffect
