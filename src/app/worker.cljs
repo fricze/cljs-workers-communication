@@ -3,44 +3,9 @@
             [re-frame.core :as rf]
             [clojure.string :as str]))
 
-;; A detailed walk-through of this source code is provided in the docs:
-;; https://github.com/Day8/re-frame/blob/master/docs/CodeWalkthrough.md
-
-;; -- Domino 1 - Event Dispatch -----------------------------------------------
-
-
-(defn dispatch-timer-event
-  []
-  (let [now (js/Date.)]
-    (rf/dispatch [:timer now])))  ;; <-- dispatch used
-
-;; Call the dispatching function every second.
-;; `defonce` is like `def` but it ensures only one instance is ever
-;; created in the face of figwheel hot-reloading of this file.
-
-(defonce do-timer (js/setInterval dispatch-timer-event 1000))
-
-
-;; -- Domino 2 - Event Handlers -----------------------------------------------
-
-
-(rf/reg-event-db              ;; sets up initial application state
- :initialize                 ;; usage:  (dispatch [:initialize])
- (fn [_ _]                   ;; the two parameters are not important here, so use _
-   {:time (js/Date.)         ;; What it returns becomes the new application state
-    :time-color "#f88"}))    ;; so the application state will initially be a map with two keys
-
-
-(rf/reg-event-db                ;; usage:  (dispatch [:time-color-change 34562])
- :time-color-change            ;; dispatched when the user enters a new colour into the UI text field
- (fn [db [_ new-color-value]]  ;; -db event handlers given 2 parameters:  current application state and event (a vector)
-   (assoc db :time-color new-color-value)))   ;; compute and return the new application state
-
-(rf/reg-event-fx                 ;; usage:  (dispatch [:timer a-js-Date])
- :timer                         ;; every second an event of this kind will be dispatched
- [(rf/inject-cofx :now)]
- (fn [{:keys [db now]} [_ new-time]]          ;; note how the 2nd parameter is destructured to obtain the data value
-   {:db (assoc db :time now)}))  ;; compute and return the new application state
+(rf/reg-event-db
+ :initialize
+ (fn [_ _] {}))
 
 (rf/reg-event-fx
  :work-it
@@ -51,15 +16,21 @@
      {:spawn-worker {:msg-channel msg-channel :worker worker}
       :db (assoc db :msg-channel msg-channel :worker worker)})))
 
+(defn listen-on-channel! [channel handler]
+  (aset channel "port1" "onmessage" handler))
+
+(defn worker-handshake! [worker channel]
+  (.postMessage worker
+                #js {:welcome true}
+                #js [(.-port2 channel)]))
+
 (rf/reg-fx
  :spawn-worker
  (fn [{:keys [msg-channel worker]}]
-   (aset msg-channel "port1" "onmessage"
-         #(rf/dispatch [:worker-msg %]))
 
-   (.postMessage worker
-                 #js {:welcome true}
-                 #js [(.-port2 msg-channel)])))
+   (listen-on-channel! msg-channel #(rf/dispatch [:worker-msg %]))
+
+   (worker-handshake! worker msg-channel)))
 
 (rf/reg-event-fx
  :send-it
@@ -69,65 +40,31 @@
 (rf/reg-fx
  :post-message
  (fn [{:keys [msg-channel worker]}]
-   (.postMessage worker #js {:henlo :girls})))
+   (.postMessage worker #js {:random-data (js/Math.random)})))
 
-(rf/reg-event-fx
+(rf/reg-event-db
  :worker-msg
- (fn [{:keys [db]} msg]
-   (js/console.log (str :am-groot))
-   (js/console.log msg)
-
-   {:db db}))
-
-(rf/reg-cofx               ;; registration function
- :now                 ;; what cofx-id are we registering
- (fn [coeffects _]    ;; second parameter not used in this case
-   (assoc coeffects :now (js/Date.))))   ;; add :now key, with value
-
-
- ;; -- Domino 4 - Query  -------------------------------------------------------
+ (fn [db [_ msg]]
+   (assoc db :msg (.-data msg))))
 
 (rf/reg-sub
- :time
- (fn [db _]     ;; db is current app state. 2nd unused param is query vector
-   (:time db))) ;; return a query computation over the application state
-
-(rf/reg-sub
- :time-color
+ :worker-msg
  (fn [db _]
-   (:time-color db)))
-
-
-;; -- Domino 5 - View Functions ----------------------------------------------
-
-
-(defn clock
-  []
-  [:div.example-clock
-   {:style {:color @(rf/subscribe [:time-color])}}
-   (-> @(rf/subscribe [:time])
-       .toTimeString
-       (str/split " ")
-       first)])
-
-(defn color-input
-  []
-  [:div.color-input
-   "Time color: "
-   [:input {:type "text"
-            :value @(rf/subscribe [:time-color])
-            :on-change #(rf/dispatch [:time-color-change (-> % .-target .-value)])}]])  ;; <---
+   (:msg db)))
 
 (defn ui
   []
   [:div
-   [:h1 "Hello world, it is now"]
+   [:h1 "Let's talk with service worker!"]
    [:button {:on-click #(rf/dispatch [:work-it])} "worker"]
    [:button {:on-click #(rf/dispatch [:send-it])} "sender"]
-   [clock]
-   [color-input]])
+   [:div
+    [:h1 "service worker message"]
+    [:div
+     (js/JSON.stringify (clj->js @(rf/subscribe [:worker-msg])))]]])
 
 ;; -- Entry Point -------------------------------------------------------------
+
 
 (defn ^:export run
   []

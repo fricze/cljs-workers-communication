@@ -5,10 +5,10 @@
             ["react-dom" :refer [render]]
             ["react-hyperscript" :as h]
             ["./calendar.js" :refer [getDaysInMonthRecursive Calendar]]
-            [app.calendar-view :refer [calendar-view]]
+            #_[app.calendar-view :refer [calendar-view]]
             [app.get-month :refer [get-days-in-month-loop-3]]))
 
-(defn get-calendar-block [props]
+#_(defn get-calendar-block [props]
   (clj->js (calendar-view
             (-> props
                 js->clj
@@ -16,11 +16,11 @@
                 (clojure.set/rename-keys
                  {:daysPerRow :days-per-row})))))
 
-(def root (h Calendar #js {:_getCalendarBlock get-calendar-block}))
+#_(def root (h Calendar #js {:_getCalendarBlock get-calendar-block}))
 
 ;; (render root (js/document.getElementById "root"))
 
-(make-counter-3!)
+#_(make-counter-3!)
 
 (defn main! []
   (run)
