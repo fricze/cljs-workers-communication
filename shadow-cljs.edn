@@ -1,9 +1,7 @@
 {:source-paths ["src"]
  :dependencies [[cider/cider-nrepl "0.21.1"]
-                [fulcrologic/fulcro "2.8.11"]
                 [re-frame "0.10.6"]
-                [reagent "0.8.1"]
-                [lilactown/hx "0.5.2"]]
+                [reagent "0.8.1"]]
  :nrepl {:port 9000
          :middleware []}
  :dev-http {8080 "target/"}
